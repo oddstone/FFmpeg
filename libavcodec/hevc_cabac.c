@@ -454,12 +454,18 @@ void ff_hevc_save_states(HEVCContext *s, int ctb_addr_ts)
          (s->ps.sps->ctb_width == 2 &&
           ctb_addr_ts % s->ps.sps->ctb_width == 0))) {
         memcpy(s->cabac_state, s->HEVClc->cabac_state, HEVC_CONTEXTS);
+        if (s->ps.sps->persistent_rice_adaptation_enabled_flag) {
+            memcpy(s->stat_coeff, s->HEVClc->stat_coeff, HEVC_STAT_COEFFS);
+        }
     }
 }
 
 static void load_states(HEVCContext *s)
 {
     memcpy(s->HEVClc->cabac_state, s->cabac_state, HEVC_CONTEXTS);
+    if (s->ps.sps->persistent_rice_adaptation_enabled_flag) {
+        memcpy(s->HEVClc->stat_coeff, s->stat_coeff, HEVC_STAT_COEFFS);
+    }
 }
 
 static int cabac_reinit(HEVCLocalContext *lc)
