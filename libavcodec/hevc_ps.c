@@ -281,6 +281,8 @@ static int decode_profile_tier_level(GetBitContext *gb, AVCodecContext *avctx,
         av_log(avctx, AV_LOG_DEBUG, "Main Still Picture profile bitstream\n");
     else if (ptl->profile_idc == FF_PROFILE_HEVC_REXT)
         av_log(avctx, AV_LOG_DEBUG, "Range Extension profile bitstream\n");
+    else if (ptl->profile_idc == FF_PRFOILE_HEVC_HIGH_THROUGHPUT)
+        av_log(avctx, AV_LOG_DEBUG, "High Throughput profile bitstream\n");
     else
         av_log(avctx, AV_LOG_WARNING, "Unknown HEVC profile: %d\n", ptl->profile_idc);
 
