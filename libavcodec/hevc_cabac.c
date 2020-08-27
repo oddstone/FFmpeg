@@ -447,12 +447,19 @@ static const uint8_t diag_scan8x8_inv[8][8] = {
     { 28, 36, 43, 49, 54, 58, 61, 63, },
 };
 
+inline static int not_in_same_tile(const HEVCContext *s, int current_ts, int other_rs)
+{
+    const int other_ts  = s->ps.pps->ctb_addr_rs_to_ts[other_rs];
+    av_assert0(other_rs >= 0);
+    return s->ps.pps->tile_id[current_ts] != s->ps.pps->tile_id[other_ts];
+}
+
 void ff_hevc_save_states(HEVCContext *s, int ctb_addr_ts)
 {
+    const int ctb_addr_rs = s->ps.pps->ctb_addr_ts_to_rs[ctb_addr_ts];
     if (s->ps.pps->entropy_coding_sync_enabled_flag &&
-        (ctb_addr_ts % s->ps.sps->ctb_width == 2 ||
-         (s->ps.sps->ctb_width == 2 &&
-          ctb_addr_ts % s->ps.sps->ctb_width == 0))) {
+        (ctb_addr_rs % s->ps.sps->ctb_width == 1 ||
+         (ctb_addr_rs > 1 && not_in_same_tile(s, ctb_addr_ts, ctb_addr_rs - 2)))) {
         memcpy(s->cabac_state, s->HEVClc->cabac_state, HEVC_CONTEXTS);
         if (s->ps.sps->persistent_rice_adaptation_enabled_flag) {
             memcpy(s->stat_coeff, s->HEVClc->stat_coeff, HEVC_STAT_COEFFS);
@@ -507,6 +514,27 @@ static void cabac_init_state(HEVCContext *s)
         s->HEVClc->stat_coeff[i] = 0;
 }
 
+static av_always_inline int z_scan_block_avail(HEVCContext *s, int xCurr, int yCurr,
+                              int xN, int yN)
+{
+#define MIN_TB_ADDR_ZS(x, y)                                            \
+    s->ps.pps->min_tb_addr_zs[(y) * (s->ps.sps->tb_mask+2) + (x)]
+
+    int xCurr_ctb = xCurr >> s->ps.sps->log2_ctb_size;
+    int yCurr_ctb = yCurr >> s->ps.sps->log2_ctb_size;
+    int xN_ctb    = xN    >> s->ps.sps->log2_ctb_size;
+    int yN_ctb    = yN    >> s->ps.sps->log2_ctb_size;
+    if( yN_ctb < yCurr_ctb || xN_ctb < xCurr_ctb )
+        return 1;
+    else {
+        int Curr = MIN_TB_ADDR_ZS((xCurr >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask,
+                (yCurr >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask);
+        int N    = MIN_TB_ADDR_ZS((xN >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask,
+                (yN >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask);
+        return N <= Curr;
+    }
+}
+
 int ff_hevc_cabac_init(HEVCContext *s, int ctb_addr_ts)
 {
     if (ctb_addr_ts == s->ps.pps->ctb_addr_rs_to_ts[s->sh.slice_ctb_addr_rs]) {
@@ -539,9 +567,12 @@ int ff_hevc_cabac_init(HEVCContext *s, int ctb_addr_ts)
             if (ret < 0)
                 return ret;
             cabac_init_state(s);
-        }
-        if (s->ps.pps->entropy_coding_sync_enabled_flag) {
-            if (ctb_addr_ts % s->ps.sps->ctb_width == 0) {
+        } else if (s->ps.pps->entropy_coding_sync_enabled_flag) {
+            int ctb_addr_rs = s->ps.pps->ctb_addr_ts_to_rs[ctb_addr_ts];
+            int prev_ts = s->ps.pps->ctb_addr_rs_to_ts[ctb_addr_rs - 1];
+            if (ctb_addr_rs % s->ps.sps->ctb_width == 0 ||
+                (s->ps.pps->tiles_enabled_flag &&
+                s->ps.pps->tile_id[ctb_addr_ts] != s->ps.pps->tile_id[prev_ts])) {
                 int ret;
                 get_cabac_terminate(&s->HEVClc->cc);
                 if (s->threads_number == 1)
@@ -551,11 +582,17 @@ int ff_hevc_cabac_init(HEVCContext *s, int ctb_addr_ts)
                 }
                 if (ret < 0)
                     return ret;
+                {
+                    int x_ctb = (ctb_addr_rs % s->ps.sps->ctb_width) << s->ps.sps->log2_ctb_size;
+                    int y_ctb = (ctb_addr_rs / s->ps.sps->ctb_width) << s->ps.sps->log2_ctb_size;
+                    int ctb_size = 1 << s->ps.sps->log2_ctb_size;
+                    if (!z_scan_block_avail(s, x_ctb, y_ctb, x_ctb + ctb_size, y_ctb - ctb_size)) {
+                        cabac_init_state(s);
+                    } else {
+                        load_states(s);
+                    }
 
-                if (s->ps.sps->ctb_width == 1)
-                    cabac_init_state(s);
-                else
-                    load_states(s);
+                }
             }
         }
     }
