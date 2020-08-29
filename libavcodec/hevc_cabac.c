@@ -547,9 +547,10 @@ int ff_hevc_cabac_init(HEVCContext *s, int ctb_addr_ts)
             if (ret < 0)
                 return ret;
             cabac_init_state(s);
-        }
-        if (s->ps.pps->entropy_coding_sync_enabled_flag) {
-            if (ctb_addr_ts % s->ps.sps->ctb_width == 0) {
+        } else if (s->ps.pps->entropy_coding_sync_enabled_flag) {
+            const int ctb_addr_rs = s->ps.pps->ctb_addr_ts_to_rs[ctb_addr_ts];
+            if (ctb_addr_rs % s->ps.sps->ctb_width == 0 ||
+                not_in_same_tile(s, ctb_addr_ts, ctb_addr_rs - 1)) {
                 int ret;
                 get_cabac_terminate(&s->HEVClc->cc);
                 if (s->threads_number == 1)
@@ -559,11 +560,20 @@ int ff_hevc_cabac_init(HEVCContext *s, int ctb_addr_ts)
                 }
                 if (ret < 0)
                     return ret;
+                {
+                    const int x_ctb = (ctb_addr_rs % s->ps.sps->ctb_width) << s->ps.sps->log2_ctb_size;
+                    const int y_ctb = (ctb_addr_rs / s->ps.sps->ctb_width) << s->ps.sps->log2_ctb_size;
+                    const int ctb_size = 1 << s->ps.sps->log2_ctb_size;
+                    const int x_top_right_ctb = x_ctb + ctb_size;
+                    const int y_top_right_ctb = y_ctb - ctb_size;
+                    if (x_top_right_ctb >= s->ps.sps->width || y_top_right_ctb < 0
+                        || !ff_hevc_z_scan_block_avail(s, x_ctb, y_ctb, x_top_right_ctb, y_top_right_ctb)) {
+                        cabac_init_state(s);
+                    } else {
+                        load_states(s);
+                    }
 
-                if (s->ps.sps->ctb_width == 1)
-                    cabac_init_state(s);
-                else
-                    load_states(s);
+                }
             }
         }
     }
