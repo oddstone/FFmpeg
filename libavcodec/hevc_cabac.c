@@ -447,17 +447,25 @@ static const uint8_t diag_scan8x8_inv[8][8] = {
     { 28, 36, 43, 49, 54, 58, 61, 63, },
 };
 
+inline static int not_in_same_tile(const HEVCContext *s, int current_ts, int other_rs)
+{
+    const int other_ts  = s->ps.pps->ctb_addr_rs_to_ts[other_rs];
+    av_assert0(other_rs >= 0);
+    return s->ps.pps->tile_id[current_ts] != s->ps.pps->tile_id[other_ts];
+}
+
 void ff_hevc_save_states(HEVCContext *s, int ctb_addr_ts)
 {
+    const int ctb_addr_rs = s->ps.pps->ctb_addr_ts_to_rs[ctb_addr_ts];
     if (s->ps.pps->entropy_coding_sync_enabled_flag &&
-        (ctb_addr_ts % s->ps.sps->ctb_width == 2 ||
-         (s->ps.sps->ctb_width == 2 &&
-          ctb_addr_ts % s->ps.sps->ctb_width == 0))) {
+        (ctb_addr_rs % s->ps.sps->ctb_width == 1 ||
+         (ctb_addr_rs > 1 && not_in_same_tile(s, ctb_addr_ts, ctb_addr_rs - 2)))) {
         memcpy(s->cabac_state, s->HEVClc->cabac_state, HEVC_CONTEXTS);
         if (s->ps.sps->persistent_rice_adaptation_enabled_flag) {
             memcpy(s->stat_coeff, s->HEVClc->stat_coeff, HEVC_STAT_COEFFS);
         }
     }
+    //todo: add dependent_slice_segments_enabled_flag case when we have test clips
 }
 
 static void load_states(HEVCContext *s)

@@ -2473,8 +2473,8 @@ static int hls_decode_entry(AVCodecContext *avctxt, void *isFilterThread)
         }
 
 
-        ctb_addr_ts++;
         ff_hevc_save_states(s, ctb_addr_ts);
+        ctb_addr_ts++;
         ff_hevc_hls_filters(s, x_ctb, y_ctb, ctb_size);
     }
 
@@ -2543,9 +2543,9 @@ static int hls_decode_entry_wpp(AVCodecContext *avctxt, void *input_ctb_row, int
             goto error;
         }
 
+        ff_hevc_save_states(s, ctb_addr_ts);
         ctb_addr_ts++;
 
-        ff_hevc_save_states(s, ctb_addr_ts);
         ff_thread_report_progress2(s->avctx, ctb_row, thread, 1);
         ff_hevc_hls_filters(s, x_ctb, y_ctb, ctb_size);
 
