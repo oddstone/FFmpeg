@@ -595,6 +595,30 @@ int ff_hevc_frame_rps(HEVCContext *s);
  */
 int ff_hevc_slice_rpl(HEVCContext *s);
 
+/*
+ * 6.4.1 Derivation process for z-scan order block availability
+ */
+static av_always_inline int ff_hevc_z_scan_block_avail(HEVCContext *s, int xCurr, int yCurr,
+                              int xN, int yN)
+{
+#define MIN_TB_ADDR_ZS(x, y)                                            \
+    s->ps.pps->min_tb_addr_zs[(y) * (s->ps.sps->tb_mask+2) + (x)]
+
+    int xCurr_ctb = xCurr >> s->ps.sps->log2_ctb_size;
+    int yCurr_ctb = yCurr >> s->ps.sps->log2_ctb_size;
+    int xN_ctb    = xN    >> s->ps.sps->log2_ctb_size;
+    int yN_ctb    = yN    >> s->ps.sps->log2_ctb_size;
+    if( yN_ctb < yCurr_ctb || xN_ctb < xCurr_ctb )
+        return 1;
+    else {
+        int Curr = MIN_TB_ADDR_ZS((xCurr >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask,
+                (yCurr >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask);
+        int N    = MIN_TB_ADDR_ZS((xN >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask,
+                (yN >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask);
+        return N <= Curr;
+    }
+}
+
 void ff_hevc_save_states(HEVCContext *s, int ctb_addr_ts);
 int ff_hevc_cabac_init(HEVCContext *s, int ctb_addr_ts);
 int ff_hevc_sao_merge_flag_decode(HEVCContext *s);

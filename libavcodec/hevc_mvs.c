@@ -58,30 +58,6 @@ void ff_hevc_set_neighbour_available(HEVCContext *s, int x0, int y0,
     lc->na.cand_bottom_left = ((y0 + nPbH) >= lc->end_of_tiles_y) ? 0 : lc->na.cand_left;
 }
 
-/*
- * 6.4.1 Derivation process for z-scan order block availability
- */
-static av_always_inline int z_scan_block_avail(HEVCContext *s, int xCurr, int yCurr,
-                              int xN, int yN)
-{
-#define MIN_TB_ADDR_ZS(x, y)                                            \
-    s->ps.pps->min_tb_addr_zs[(y) * (s->ps.sps->tb_mask+2) + (x)]
-
-    int xCurr_ctb = xCurr >> s->ps.sps->log2_ctb_size;
-    int yCurr_ctb = yCurr >> s->ps.sps->log2_ctb_size;
-    int xN_ctb    = xN    >> s->ps.sps->log2_ctb_size;
-    int yN_ctb    = yN    >> s->ps.sps->log2_ctb_size;
-    if( yN_ctb < yCurr_ctb || xN_ctb < xCurr_ctb )
-        return 1;
-    else {
-        int Curr = MIN_TB_ADDR_ZS((xCurr >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask,
-                (yCurr >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask);
-        int N    = MIN_TB_ADDR_ZS((xN >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask,
-                (yN >> s->ps.sps->log2_min_tb_size) & s->ps.sps->tb_mask);
-        return N <= Curr;
-    }
-}
-
 //check if the two luma locations belong to the same motion estimation region
 static av_always_inline int is_diff_mer(HEVCContext *s, int xN, int yN, int xP, int yP)
 {
@@ -274,7 +250,7 @@ static int temporal_luma_motion_vector(HEVCContext *s, int x0, int y0,
     (cand && !(TAB_MVF_PU(v).pred_flag == PF_INTRA))
 
 #define PRED_BLOCK_AVAILABLE(v)                                 \
-    z_scan_block_avail(s, x0, y0, x ## v, y ## v)
+    ff_hevc_z_scan_block_avail(s, x0, y0, x ## v, y ## v)
 
 #define COMPARE_MV_REFIDX(a, b)                                 \
     compare_mv_ref_idx(TAB_MVF_PU(a), TAB_MVF_PU(b))
