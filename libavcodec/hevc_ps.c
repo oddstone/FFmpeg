@@ -1151,9 +1151,6 @@ int ff_hevc_parse_sps(HEVCSPS *sps, GetBitContext *gb, unsigned int *sps_id,
             sps->persistent_rice_adaptation_enabled_flag = get_bits1(gb);
 
             sps->cabac_bypass_alignment_enabled_flag  = get_bits1(gb);
-            if (sps->cabac_bypass_alignment_enabled_flag)
-                av_log(avctx, AV_LOG_WARNING,
-                   "cabac_bypass_alignment_enabled_flag not yet implemented\n");
         }
     }
     if (apply_defdispwin) {
