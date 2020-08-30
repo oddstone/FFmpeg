@@ -84,6 +84,7 @@ static const int8_t num_bins_in_se[] = {
      2, // res_scale_sign_flag
      1, // cu_chroma_qp_offset_flag
      1, // cu_chroma_qp_offset_idx
+     1, // palette_mode_flag
 };
 
 /**
@@ -139,6 +140,7 @@ static const int elem_offset[sizeof(num_bins_in_se)] = {
     175, // res_scale_sign_flag
     177, // cu_chroma_qp_offset_flag
     178, // cu_chroma_qp_offset_idx
+    179, // palette_mode_flag
 };
 
 #define CNU 154
@@ -222,6 +224,8 @@ static const uint8_t init_values[3][HEVC_CONTEXTS] = {
       154,
       // cu_chroma_qp_offset_idx
       154,
+      // palette_mode_flag
+      154,
     },
     { // sao_merge_flag
       153,
@@ -298,6 +302,8 @@ static const uint8_t init_values[3][HEVC_CONTEXTS] = {
       // cu_chroma_qp_offset_flag
       154,
       // cu_chroma_qp_offset_idx
+      154,
+      // palette_mode_flag
       154,
     },
     { // sao_merge_flag
@@ -376,6 +382,8 @@ static const uint8_t init_values[3][HEVC_CONTEXTS] = {
       154,
       // cu_chroma_qp_offset_idx
       154,
+      // palette_mode_flag
+      154
     },
 };
 
@@ -681,6 +689,11 @@ int ff_hevc_cu_chroma_qp_offset_idx(HEVCContext *s)
 int ff_hevc_pred_mode_decode(HEVCContext *s)
 {
     return GET_CABAC(elem_offset[PRED_MODE_FLAG]);
+}
+
+int ff_hevc_palette_mode_flag_decode(HEVCContext *s)
+{
+    return GET_CABAC(elem_offset[PALETTE_MODE_FLAG]);
 }
 
 int ff_hevc_split_coding_unit_flag_decode(HEVCContext *s, int ct_depth, int x0, int y0)

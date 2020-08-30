@@ -138,6 +138,7 @@ enum SyntaxElement {
     RES_SCALE_SIGN_FLAG,
     CU_CHROMA_QP_OFFSET_FLAG,
     CU_CHROMA_QP_OFFSET_IDX,
+    PALETTE_MODE_FLAG,
 };
 
 enum PartMode {
@@ -426,6 +427,13 @@ typedef struct HEVCFrame {
     uint8_t flags;
 } HEVCFrame;
 
+typedef struct HEVCPalette {
+    //*2 for > 8 bits
+    uint16_t entries[2][3][HEVC_MAX_PALETTE_PREDICTOR_SIZE];
+    uint16_t (*current)[3][HEVC_MAX_PALETTE_PREDICTOR_SIZE];
+    uint16_t (*prev)[3][HEVC_MAX_PALETTE_PREDICTOR_SIZE];
+};
+
 typedef struct HEVCLocalContext {
     uint8_t cabac_state[HEVC_CONTEXTS];
 
@@ -611,6 +619,7 @@ int ff_hevc_cu_transquant_bypass_flag_decode(HEVCContext *s);
 int ff_hevc_skip_flag_decode(HEVCContext *s, int x0, int y0,
                              int x_cb, int y_cb);
 int ff_hevc_pred_mode_decode(HEVCContext *s);
+int ff_hevc_palette_mode_flag_decode(HEVCContext *s);
 int ff_hevc_split_coding_unit_flag_decode(HEVCContext *s, int ct_depth,
                                           int x0, int y0);
 int ff_hevc_part_mode_decode(HEVCContext *s, int log2_cb_size);

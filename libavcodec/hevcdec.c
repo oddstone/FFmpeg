@@ -2142,6 +2142,19 @@ static void intra_prediction_unit_default_value(HEVCContext *s,
                 tab_mvf[(y_pu + j) * min_pu_width + x_pu + k].pred_flag = PF_INTRA;
 }
 
+static void paltte_entries(HEVCContext *s)
+{
+
+
+}
+
+static int palette_coding(HEVCContext *s, int x0, int y0,
+                                int log2_cb_size)
+{
+    paltte_entries(s);
+    return 0;
+}
+
 static int hls_coding_unit(HEVCContext *s, int x0, int y0, int log2_cb_size)
 {
     int cb_size          = 1 << log2_cb_size;
@@ -2196,92 +2209,103 @@ static int hls_coding_unit(HEVCContext *s, int x0, int y0, int log2_cb_size)
             ff_hevc_deblocking_boundary_strengths(s, x0, y0, log2_cb_size);
     } else {
         int pcm_flag = 0;
+        int palette_mode_flag = 0;
 
         if (s->sh.slice_type != HEVC_SLICE_I)
             lc->cu.pred_mode = ff_hevc_pred_mode_decode(s);
-        if (lc->cu.pred_mode != MODE_INTRA ||
-            log2_cb_size == s->ps.sps->log2_min_cb_size) {
-            lc->cu.part_mode        = ff_hevc_part_mode_decode(s, log2_cb_size);
-            lc->cu.intra_split_flag = lc->cu.part_mode == PART_NxN &&
-                                      lc->cu.pred_mode == MODE_INTRA;
-        }
-
-        if (lc->cu.pred_mode == MODE_INTRA) {
-            if (lc->cu.part_mode == PART_2Nx2N && s->ps.sps->pcm_enabled_flag &&
-                log2_cb_size >= s->ps.sps->pcm.log2_min_pcm_cb_size &&
-                log2_cb_size <= s->ps.sps->pcm.log2_max_pcm_cb_size) {
-                pcm_flag = ff_hevc_pcm_flag_decode(s);
-            }
-            if (pcm_flag) {
-                intra_prediction_unit_default_value(s, x0, y0, log2_cb_size);
-                ret = hls_pcm_sample(s, x0, y0, log2_cb_size);
-                if (s->ps.sps->pcm.loop_filter_disable_flag)
-                    set_deblocking_bypass(s, x0, y0, log2_cb_size);
-
-                if (ret < 0)
-                    return ret;
-            } else {
-                intra_prediction_unit(s, x0, y0, log2_cb_size);
-            }
+        if (s->ps.sps->palette_mode_enabled_flag &&
+            lc->cu.pred_mode == MODE_INTRA &&
+            log2_cb_size <= s->ps.sps->log2_max_trafo_size)
+            palette_mode_flag = ff_hevc_palette_mode_flag_decode(s);
+        if (palette_mode_flag) {
+            ret = palette_coding(s, x0, y0, log2_cb_size);
+            if (ret < 0)
+                return ret;
         } else {
-            intra_prediction_unit_default_value(s, x0, y0, log2_cb_size);
-            switch (lc->cu.part_mode) {
-            case PART_2Nx2N:
-                hls_prediction_unit(s, x0, y0, cb_size, cb_size, log2_cb_size, 0, idx);
-                break;
-            case PART_2NxN:
-                hls_prediction_unit(s, x0, y0,               cb_size, cb_size / 2, log2_cb_size, 0, idx);
-                hls_prediction_unit(s, x0, y0 + cb_size / 2, cb_size, cb_size / 2, log2_cb_size, 1, idx);
-                break;
-            case PART_Nx2N:
-                hls_prediction_unit(s, x0,               y0, cb_size / 2, cb_size, log2_cb_size, 0, idx - 1);
-                hls_prediction_unit(s, x0 + cb_size / 2, y0, cb_size / 2, cb_size, log2_cb_size, 1, idx - 1);
-                break;
-            case PART_2NxnU:
-                hls_prediction_unit(s, x0, y0,               cb_size, cb_size     / 4, log2_cb_size, 0, idx);
-                hls_prediction_unit(s, x0, y0 + cb_size / 4, cb_size, cb_size * 3 / 4, log2_cb_size, 1, idx);
-                break;
-            case PART_2NxnD:
-                hls_prediction_unit(s, x0, y0,                   cb_size, cb_size * 3 / 4, log2_cb_size, 0, idx);
-                hls_prediction_unit(s, x0, y0 + cb_size * 3 / 4, cb_size, cb_size     / 4, log2_cb_size, 1, idx);
-                break;
-            case PART_nLx2N:
-                hls_prediction_unit(s, x0,               y0, cb_size     / 4, cb_size, log2_cb_size, 0, idx - 2);
-                hls_prediction_unit(s, x0 + cb_size / 4, y0, cb_size * 3 / 4, cb_size, log2_cb_size, 1, idx - 2);
-                break;
-            case PART_nRx2N:
-                hls_prediction_unit(s, x0,                   y0, cb_size * 3 / 4, cb_size, log2_cb_size, 0, idx - 2);
-                hls_prediction_unit(s, x0 + cb_size * 3 / 4, y0, cb_size     / 4, cb_size, log2_cb_size, 1, idx - 2);
-                break;
-            case PART_NxN:
-                hls_prediction_unit(s, x0,               y0,               cb_size / 2, cb_size / 2, log2_cb_size, 0, idx - 1);
-                hls_prediction_unit(s, x0 + cb_size / 2, y0,               cb_size / 2, cb_size / 2, log2_cb_size, 1, idx - 1);
-                hls_prediction_unit(s, x0,               y0 + cb_size / 2, cb_size / 2, cb_size / 2, log2_cb_size, 2, idx - 1);
-                hls_prediction_unit(s, x0 + cb_size / 2, y0 + cb_size / 2, cb_size / 2, cb_size / 2, log2_cb_size, 3, idx - 1);
-                break;
+            if (lc->cu.pred_mode != MODE_INTRA ||
+                log2_cb_size == s->ps.sps->log2_min_cb_size) {
+                lc->cu.part_mode        = ff_hevc_part_mode_decode(s, log2_cb_size);
+                lc->cu.intra_split_flag = lc->cu.part_mode == PART_NxN &&
+                                        lc->cu.pred_mode == MODE_INTRA;
             }
-        }
 
-        if (!pcm_flag) {
-            int rqt_root_cbf = 1;
+            if (lc->cu.pred_mode == MODE_INTRA) {
+                if (lc->cu.part_mode == PART_2Nx2N && s->ps.sps->pcm_enabled_flag &&
+                    log2_cb_size >= s->ps.sps->pcm.log2_min_pcm_cb_size &&
+                    log2_cb_size <= s->ps.sps->pcm.log2_max_pcm_cb_size) {
+                    pcm_flag = ff_hevc_pcm_flag_decode(s);
+                }
+                if (pcm_flag) {
+                    intra_prediction_unit_default_value(s, x0, y0, log2_cb_size);
+                    ret = hls_pcm_sample(s, x0, y0, log2_cb_size);
+                    if (s->ps.sps->pcm.loop_filter_disable_flag)
+                        set_deblocking_bypass(s, x0, y0, log2_cb_size);
 
-            if (lc->cu.pred_mode != MODE_INTRA &&
-                !(lc->cu.part_mode == PART_2Nx2N && lc->pu.merge_flag)) {
-                rqt_root_cbf = ff_hevc_no_residual_syntax_flag_decode(s);
-            }
-            if (rqt_root_cbf) {
-                const static int cbf[2] = { 0 };
-                lc->cu.max_trafo_depth = lc->cu.pred_mode == MODE_INTRA ?
-                                         s->ps.sps->max_transform_hierarchy_depth_intra + lc->cu.intra_split_flag :
-                                         s->ps.sps->max_transform_hierarchy_depth_inter;
-                ret = hls_transform_tree(s, x0, y0, x0, y0, x0, y0,
-                                         log2_cb_size,
-                                         log2_cb_size, 0, 0, cbf, cbf);
-                if (ret < 0)
-                    return ret;
+                    if (ret < 0)
+                        return ret;
+                } else {
+                    intra_prediction_unit(s, x0, y0, log2_cb_size);
+                }
             } else {
-                if (!s->sh.disable_deblocking_filter_flag)
-                    ff_hevc_deblocking_boundary_strengths(s, x0, y0, log2_cb_size);
+                intra_prediction_unit_default_value(s, x0, y0, log2_cb_size);
+                switch (lc->cu.part_mode) {
+                case PART_2Nx2N:
+                    hls_prediction_unit(s, x0, y0, cb_size, cb_size, log2_cb_size, 0, idx);
+                    break;
+                case PART_2NxN:
+                    hls_prediction_unit(s, x0, y0,               cb_size, cb_size / 2, log2_cb_size, 0, idx);
+                    hls_prediction_unit(s, x0, y0 + cb_size / 2, cb_size, cb_size / 2, log2_cb_size, 1, idx);
+                    break;
+                case PART_Nx2N:
+                    hls_prediction_unit(s, x0,               y0, cb_size / 2, cb_size, log2_cb_size, 0, idx - 1);
+                    hls_prediction_unit(s, x0 + cb_size / 2, y0, cb_size / 2, cb_size, log2_cb_size, 1, idx - 1);
+                    break;
+                case PART_2NxnU:
+                    hls_prediction_unit(s, x0, y0,               cb_size, cb_size     / 4, log2_cb_size, 0, idx);
+                    hls_prediction_unit(s, x0, y0 + cb_size / 4, cb_size, cb_size * 3 / 4, log2_cb_size, 1, idx);
+                    break;
+                case PART_2NxnD:
+                    hls_prediction_unit(s, x0, y0,                   cb_size, cb_size * 3 / 4, log2_cb_size, 0, idx);
+                    hls_prediction_unit(s, x0, y0 + cb_size * 3 / 4, cb_size, cb_size     / 4, log2_cb_size, 1, idx);
+                    break;
+                case PART_nLx2N:
+                    hls_prediction_unit(s, x0,               y0, cb_size     / 4, cb_size, log2_cb_size, 0, idx - 2);
+                    hls_prediction_unit(s, x0 + cb_size / 4, y0, cb_size * 3 / 4, cb_size, log2_cb_size, 1, idx - 2);
+                    break;
+                case PART_nRx2N:
+                    hls_prediction_unit(s, x0,                   y0, cb_size * 3 / 4, cb_size, log2_cb_size, 0, idx - 2);
+                    hls_prediction_unit(s, x0 + cb_size * 3 / 4, y0, cb_size     / 4, cb_size, log2_cb_size, 1, idx - 2);
+                    break;
+                case PART_NxN:
+                    hls_prediction_unit(s, x0,               y0,               cb_size / 2, cb_size / 2, log2_cb_size, 0, idx - 1);
+                    hls_prediction_unit(s, x0 + cb_size / 2, y0,               cb_size / 2, cb_size / 2, log2_cb_size, 1, idx - 1);
+                    hls_prediction_unit(s, x0,               y0 + cb_size / 2, cb_size / 2, cb_size / 2, log2_cb_size, 2, idx - 1);
+                    hls_prediction_unit(s, x0 + cb_size / 2, y0 + cb_size / 2, cb_size / 2, cb_size / 2, log2_cb_size, 3, idx - 1);
+                    break;
+                }
+            }
+
+            if (!pcm_flag) {
+                int rqt_root_cbf = 1;
+
+                if (lc->cu.pred_mode != MODE_INTRA &&
+                    !(lc->cu.part_mode == PART_2Nx2N && lc->pu.merge_flag)) {
+                    rqt_root_cbf = ff_hevc_no_residual_syntax_flag_decode(s);
+                }
+                if (rqt_root_cbf) {
+                    const static int cbf[2] = { 0 };
+                    lc->cu.max_trafo_depth = lc->cu.pred_mode == MODE_INTRA ?
+                                            s->ps.sps->max_transform_hierarchy_depth_intra + lc->cu.intra_split_flag :
+                                            s->ps.sps->max_transform_hierarchy_depth_inter;
+                    ret = hls_transform_tree(s, x0, y0, x0, y0, x0, y0,
+                                            log2_cb_size,
+                                            log2_cb_size, 0, 0, cbf, cbf);
+                    if (ret < 0)
+                        return ret;
+                } else {
+                    if (!s->sh.disable_deblocking_filter_flag)
+                        ff_hevc_deblocking_boundary_strengths(s, x0, y0, log2_cb_size);
+                }
             }
         }
     }
